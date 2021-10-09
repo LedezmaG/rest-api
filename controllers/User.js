@@ -1,32 +1,68 @@
 const { response } = require('express');
+const bcripjs = require('bcryptjs');
+const User = require('../model/User');
 
-const Get = ( req, res = response ) => {
+const Get = async ( req, res = response ) => {
 
-    const { id } = req.query;
+    const { id, limit = 5, form = 0 } = req.query;
+    
+    if ( id ) {
+        const users = await User.findById( id, { state: true } )
+        res.json({
+            ok: true,
+            result: users 
+        })
+    } else {
+
+        const [ total, users ] = await Promise.all([
+            User.countDocuments({ state: true }),
+            User.find({ state: true })
+                .skip( Number( form ) )
+                .limit( Number(limit) )
+        ])
+        
+        res.json({
+            ok: true,
+            result: users,
+            meta: {total}
+        })
+    }
+}
+
+const Post = async ( req, res = response ) => {
+
+    const {name,email,password,rol} = req.body;
+    const user = new User({ name, email, password, rol });
+
+    // Password
+    const salt = bcripjs.genSaltSync();
+    user.password = bcripjs.hashSync( password, salt )
+
+    await user.save();
+
     res.json({
         ok: true,
-        msg: 'Get API',
-        id
+        user
     })
 }
 
-const Post = ( req, res = response ) => {
-    const { name } = req.body;
-    res.json({
-        ok: true,
-        msg: 'Post API',
-        name
-    })
-}
-
-const Put = ( req, res = response ) => {
+const Put = async ( req, res = response ) => {
     const { id } = req.params;
+    const { password, google, email, _id, ...rest } = req.body;
+
+    if ( password ) {
+        const salt = bcripjs.genSaltSync();
+        rest.password = bcripjs.hashSync( password, salt )
+    }
+
+    const user = await User.findByIdAndUpdate( id, rest )
+
     res.json({
         ok: true,
-        msg: 'Put API',
-        id
+        result: {...user._doc}
     })
 }
+
 const Patch = ( req, res = response ) => {
     res.json({
         ok: true,
@@ -34,10 +70,16 @@ const Patch = ( req, res = response ) => {
     })
 }
 
-const Delete = ( req, res = response ) => {
+const Delete = async ( req, res = response ) => {
+
+    const { id } = req.params;
+
+    // const user = await User.findByIdAndDelete( id );
+    const user = await User.findByIdAndUpdate( id, { state: false } );
+
     res.json({
         ok: true,
-        msg: 'Delete API'
+        result: 'User deleted'
     })
 }
 
